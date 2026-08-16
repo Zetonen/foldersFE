@@ -10,7 +10,7 @@ repository and is deployed independently.
 
 |                     |                                                      |
 | ------------------- | ---------------------------------------------------- |
-| **Frontend (live)** | _TODO: paste the deployed URL_                       |
+| **Frontend (live)** | https://folders-fe.vercel.app                       |
 | **Backend (live)**  | https://foldersbe-production.up.railway.app          |
 | **API docs**        | https://foldersbe-production.up.railway.app/api/docs |
 
