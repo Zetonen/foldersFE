@@ -1,6 +1,9 @@
+import { useLocation } from 'react-router-dom'
 import { useLazyGetGoogleAuthUrlQuery } from '@/api'
 import { HTTP_STATUS } from '@/shared/constants/ERROR_MESSAGES'
-import { rememberOAuthState } from '@/shared/helpers/auth/oauthState'
+import { QUERY_PARAMS } from '@/shared/constants/QUERY_PARAMS'
+import { sanitizeNextPath } from '@/shared/helpers/auth/nextParam'
+import { rememberOAuthHandoff } from '@/shared/helpers/auth/oauthState'
 import { showErrorToast } from '@/shared/helpers/toasts/showErrorToast'
 import { isAppError } from '@/types'
 import {
@@ -14,14 +17,25 @@ import {
  */
 export function useGoogleAuth() {
   const [getAuthUrl, { isFetching }] = useLazyGetGoogleAuthUrlQuery()
+  const location = useLocation()
 
   const start = async () => {
     const result = await getAuthUrl()
 
     if (result.data) {
+      /**
+       * FR-ROUTE-01: the round trip through Google leaves this origin entirely,
+       * so `?next=` on the current URL does not survive it. Parked here and
+       * picked up by the callback, it is what makes a deep link hold across an
+       * OAuth sign-in the same way it does across a password one.
+       */
+      const next = sanitizeNextPath(
+        new URLSearchParams(location.search).get(QUERY_PARAMS.next)
+      )
+
       // Parked for the callback to hand back, so this tab can tell that the
       // flow it is finishing is the one it began.
-      rememberOAuthState(result.data.state)
+      rememberOAuthHandoff(result.data.state, next)
       // Full navigation, not a router push — the consent screen is off-origin.
       window.location.assign(result.data.url)
       return

@@ -5,8 +5,12 @@ import { PageLoader } from '@/components/moduls/PageLoader'
 import { QUERY_PARAMS } from '@/shared/constants/QUERY_PARAMS'
 import { ROUTES } from '@/shared/constants/ROUTES'
 import {
+  sanitizeNextPath,
+  withNextParam,
+} from '@/shared/helpers/auth/nextParam'
+import {
   isForeignOAuthState,
-  takeOAuthState,
+  takeOAuthHandoff,
 } from '@/shared/helpers/auth/oauthState'
 import { showErrorToast } from '@/shared/helpers/toasts/showErrorToast'
 import { useAuthSuccess } from '@/shared/hooks/useAuthSuccess'
@@ -31,21 +35,28 @@ export function AuthCallbackPage() {
   const state = searchParams.get('state')
   // Google reports a declined or failed consent here, with no `code` alongside.
   const oauthError = searchParams.get('error')
-  const next = searchParams.get(QUERY_PARAMS.next)
+  const nextFromUrl = searchParams.get(QUERY_PARAMS.next)
 
   useEffect(() => {
     if (startedRef.current) return
     startedRef.current = true
 
+    /**
+     * Taken exactly once, and before any branch can return: whatever happens
+     * next, this callback has been spent and its parked values must not be
+     * left behind for the following one to pick up.
+     */
+    const handoff = takeOAuthHandoff()
+    // The URL wins if it carries one, but on the way back from Google it never
+    // does — the destination survives in what `start` parked.
+    const next = sanitizeNextPath(nextFromUrl) ?? handoff.next
+
     const returnToLogin = (message: string) => {
       showErrorToast(message)
       // `next` is carried through so the deep link survives a failed attempt.
-      navigate(
-        next
-          ? `${ROUTES.login}?${QUERY_PARAMS.next}=${encodeURIComponent(next)}`
-          : ROUTES.login,
-        { replace: true }
-      )
+      navigate(next ? withNextParam(ROUTES.login, next) : ROUTES.login, {
+        replace: true,
+      })
     }
 
     // Consent was declined, or the provider sent us back with an error. There
@@ -64,16 +75,24 @@ export function AuthCallbackPage() {
      * else's sign-in. Redeeming it would quietly put the visitor inside that
      * account, so the flow stops here rather than at the backend.
      */
-    if (isForeignOAuthState(state, takeOAuthState())) {
+    if (isForeignOAuthState(state, handoff.state)) {
       returnToLogin(GOOGLE_AUTH_ERROR)
       return
     }
 
     exchangeCode({ code, state: state ?? undefined })
       .unwrap()
-      .then(onAuthSuccess)
+      .then((response) => onAuthSuccess(response, next))
       .catch(() => returnToLogin(GOOGLE_AUTH_ERROR))
-  }, [code, state, oauthError, next, exchangeCode, onAuthSuccess, navigate])
+  }, [
+    code,
+    state,
+    oauthError,
+    nextFromUrl,
+    exchangeCode,
+    onAuthSuccess,
+    navigate,
+  ])
 
   return (
     <main className="flex min-h-full items-center justify-center bg-page">

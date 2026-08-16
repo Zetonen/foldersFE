@@ -1,240 +1,201 @@
 # Data Room — Frontend
 
-**English** · [Українська](README.uk.md)
+Data Room: сховище PDF-файлів у вкладених теках з можливістю доступу за посиланням або для
+конкретних людей.
 
-A virtual data room: PDFs in nested folders, uploaded with per-file progress,
-shared read-only by link or with named people.
+Цей репозиторій містить **тільки фронтенд**.
 
-This repository holds the **frontend only**. The API lives in a separate
-repository and is deployed independently.
-
-|                     |                                                      |
-| ------------------- | ---------------------------------------------------- |
-| **Frontend (live)** | https://folders-fe.vercel.app                       |
-| **Backend (live)**  | https://foldersbe-production.up.railway.app          |
-| **API docs**        | https://foldersbe-production.up.railway.app/api/docs |
+|                      |                                                      |
+| -------------------- | ---------------------------------------------------- |
+| **Фронтенд**         | https://folders-fe.vercel.app                        |
+| **Бекенд**           | https://foldersbe-production.up.railway.app          |
+| **Документація API** | https://foldersbe-production.up.railway.app/api/docs |
 
 ---
 
-## Table of contents
+## Зміст
 
-- [Stack](#stack)
-- [Setup](#setup)
-- [Architecture](#architecture)
-- [Design decisions](#design-decisions)
-- [Edge cases](#edge-cases)
-- [Where I used AI](#where-i-used-ai)
+- [Стек](#стек)
+- [Запуск](#запуск)
+- [Архітектура](#архітектура)
+- [Проєктні рішення](#проєктні-рішення)
+- [Граничні випадки](#граничні-випадки)
+- [Де використовувався AI](#де-використовувався-ai)
 
 ---
 
-## Stack
+## Стек
 
 React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · shadcn/Radix ·
-Redux Toolkit with RTK Query · React Router 7 · React Hook Form with Zod ·
+Redux Toolkit з RTK Query · React Router 7 · React Hook Form із Zod ·
 dnd-kit · react-pdf
 
-## Setup
+## Запуск
 
-Requires **Node 20.19+ or 22.12+** (Vite 7).
+Потрібен **Node 20.19+ або 22.12+**
 
 ```bash
 npm ci
-cp .env.example .env     # points at the deployed API by default
+cp .env.example .env     # вказати потрібні ключі
 npm run dev              # http://localhost:3000
 ```
 
-| Script                 |                                            |
-| ---------------------- | ------------------------------------------ |
-| `npm run dev`          | dev server on port 3000                    |
-| `npm run build`        | typecheck (`tsc -b`) then production build |
-| `npm run preview`      | serve the production build locally         |
-| `npm run lint`         | ESLint                                     |
-| `npm run format`       | Prettier, write                            |
-| `npm run format:check` | Prettier, verify                           |
+| Скрипт                 |                           |
+| ---------------------- | ------------------------- |
+| `npm run dev`          | дев-сервер на порту 3000  |
+| `npm run build`        | збірка проєкту            |
+| `npm run preview`      | локальний перегляд збірки |
+| `npm run lint`         | ESLint                    |
+| `npm run format`       | Prettier, із записом      |
+| `npm run format:check` | Prettier, лише перевірка  |
 
-**Environment** — one variable, `VITE_API_BASE_URL`. It is read once at boot and
-the app throws immediately if it is missing, rather than quietly issuing
-requests to its own origin.
-
-> The dev server occupies port 3000, so a backend running locally must use a
-> different one.
+| Змінні середовища   |                     |
+| ------------------- | ------------------- |
+| `VITE_API_BASE_URL` | посилання на бекенд |
 
 ---
 
-## Architecture
+## Архітектура
 
-Layers, from the outside in. **Imports only ever point downwards**, and that is
-enforced by ESLint (`no-restricted-imports`) rather than by convention — see
-[`eslint.config.js`](eslint.config.js).
+Побудована на шарах, які ідуть зовні в середину, поєднуючі FSD та модульну архітектуру
 
 ```
-pages/       route components and the router
-widgets/     self-contained blocks of a screen (modals, header, sidebar)
-features/    one user-facing capability (upload queue, share access, PDF viewer)
-components/  layout/  page frames
-             moduls/  app-level reusable pieces
-             ui/      shadcn primitives
-shared/      hooks, helpers, constants — no feature knowledge
-api/         RTK Query endpoints, axios instance, response schemas
-store/       slices and persistence
-types/       DTO schemas and shared types
+pages/       компоненти сторінок і роути
+widgets/     самодостатні блоки екрана (наприклад, модалки, хедер, сайдбар)
+features/    частини віджетів одна, менші за віджет та з більш детальною бізнес-логікою (наприклад, списки, форми, картки)
+components/  layout/  каркаси сторінок
+             moduls/  перевикористовувані елементи рівня додатка
+             ui/      примітиви shadcn ui
+shared/      загальні хуки, хелпери, константи
+api/         запити на бекенд, інстанс axios
+store/       redux сховище з слайсами
+types/       zod схеми та спільні типи
 ```
 
-A `features/` module cannot import another feature, or a widget, or a page.
-A `widget` cannot import a page or another widget. This is what keeps a screen
-composable: every dependency is either downward or passed in as a prop.
+Модуль із `features/` не може імпортувати іншу фічу, віджет чи сторінку.
+`widgets/` не може імпортувати сторінку чи інший віджет.
 
-Each module is a folder with `components/`, `hooks/`, `helpers/`, `constants/`
-and a barrel `index.ts` — so a component file holds markup, and the logic it
-needs sits next to it under a name that says what it does.
+Компоненти в `features/`, `widgets/` і громісткі `pages/` містять теки `components/`, `hooks/`, `helpers/`, `constants/` і `index.ts` (для експорту).
 
 ---
 
-## Design decisions
+## Проєктні рішення
 
-### Server state lives in exactly one place
+### Серверний стан живе рівно в одному місці
 
-RTK Query owns everything that came from the API. Redux slices hold only what
-the server does not know about: the auth session, view mode, sidebar state, the
-upload queue, the current selection. **No slice mirrors server data**, so there
-is no cache to invalidate twice and no chance of the two disagreeing.
+Глобальний стан подіділений на серверний та клієнський. RTK Query має інформацію з API. Слайси Redux тримають те, що сервер незнає - сесію, режим перегляду, стан сайдбара, чергу завантажень,
+поточне виділення.
 
-### Every response is validated before it is cached
+### Кожна відповідь валідується до потрапляння в кеш
 
-`axiosBaseQuery` takes an optional Zod schema and parses the payload before
-handing it to the cache ([`src/api/baseQuery.ts`](src/api/baseQuery.ts)). A body
-that does not match is reported as a server error instead of flowing into
-components as a wrongly-typed object. The DTO schemas in `src/types/models/` are
-the single source of truth for both the runtime check and the static type.
+`axiosBaseQuery` приймає необов'язкову Zod-схему і парсить тіло відповіді ще до
+передачі в кеш ([`src/api/baseQuery.ts`](src/api/baseQuery.ts)). Тіло, що не
+збігається зі схемою, повідомляється як помилка сервера, замість того щоб
+потекти в компоненти неправильно типізованим об'єктом.
 
-### The access token never touches disk
+### Access-токен ніколи не потрапляє на диск
 
-`FR-STATE-04`. The token lives in memory only and is explicitly blacklisted from
-`redux-persist`; the refresh token is an httpOnly cookie the JS never sees. On
-every fresh load the session is rebuilt by a single `/auth/refresh` call, and
-the route guards hold a loader until it settles — otherwise reloading a deep
-link would bounce the user to `/login` before the session had a chance to come
-back.
+Токен зберігається в cookies і виключений з даних юзера в `redux-persist`;На кожному свіжому
+завантаженні сесія відновлюється одним запитом `/auth/refresh`, а роутові гарди
+тримають лоадер, доки це не завершиться.
 
-A 401 on any request clears the session and redirects with the current path
-saved in `?next=`. Login, register and refresh **opt out** of that global
-handler: a 401 there means "wrong credentials", not "your session expired", and
-redirecting to the login screen from the login screen would be nonsense.
+### Завантаження — транзакція з трьох кроків
 
-### Uploads are a three-step transaction
+1. **Резерв** — `POST /files/upload-url` повертає підписаний URL і вільне ім'я.
+2. **Передача** — байти йдуть напряму в blob-сховище, повз API. Це єдиний запит,
+   прогрес якого бачить користувач, і саме тому він не може жити в RTK Query.
+3. **Підтвердження** — `POST /files/confirm` перетворює завантажений об'єкт на
+   запис у базі.
 
-1. **Reserve** — `POST /files/upload-url` returns a signed URL and a free name.
-2. **Transfer** — the bytes go straight to blob storage, bypassing the API. This
-   is the only request the user sees progress for, which is also why it cannot
-   live in RTK Query.
-3. **Confirm** — `POST /files/confirm` turns the stored object into a record.
+Чергою керує один процесорний хук, змонтований в оболонці додатка, тож передачі
+**переживають навігацію** між теками й екранами. Файли йдуть по одному: панель
+показує смужку прогресу для кожного, і послідовна передача робить це число
+осмисленим.
 
-The queue is driven by a single processor hook mounted in the app shell, so
-transfers **survive navigation** between folders and screens. Files go up one at
-a time: the panel shows a per-file bar, and serial transfers make that number
-mean something.
+Об'єкти `File` не серіалізуються, тож стор тримає лише їхні метадані, а самі
+блоби припарковані в module-level реєстрі під тими ж id. Реєстр звіряється з
+чергою на кожну зміну — завантаження, що покинуло чергу, віддає свій блоб, а
+_невдале_ його зберігає, щоб повтор не змушував користувача обирати файл знову.
 
-`File` objects are not serialisable, so the store holds only their metadata and
-the blobs are parked in a module-level registry under the same ids. The registry
-is reconciled against the queue on every change — an upload that leaves the
-queue drops its blob, while a _failed_ one keeps it so retry does not have to
-ask the user to pick the file again.
+Транспортні збої повторюються двічі зі зростаючою затримкою. Відмова — не той
+тип, завеликий, не дозволено — остаточна, бо повтор дасть ту саму відповідь.
 
-Transport failures retry twice with a growing delay. A refusal — wrong type, too
-large, not allowed — is final, because repeating it would produce the same
-answer.
+### Вирішення Конфлікту імен
 
-### Name conflicts are answered before a byte moves
+Сервер не відхиляє зайняте ім'я, повертаюче вільне. Тому **ім'я, яке
+повернулося зміненим, і є авторитетною ознакою конфлікту** — і єдиною
+перевіркою, що бачить усю теку, а не ті сторінки, які встиг завантажити цей
+клієнт. Резервування нічого не створює (ні запису, ні об'єкта — лише підписаний
+URL), тож відкинути його нічого не коштує. Саме це робить безпечним питати
+користувача в цей момент.
 
-The server does not refuse a taken name, it hands back a free one. So **a name
-that came back changed is the authoritative sign of a collision** — and the only
-check that sees the whole folder rather than the pages this client happens to
-have loaded. Reserving creates nothing (no record, no object, just a signed
-URL), so dropping it costs nothing, which is what makes it safe to ask the user
-at that point.
+«Замінити» робиться в єдиному порядку, який не може втратити файл:
+спершу зберігається новий, потім видаляється старий, потім ім'я переходить.
 
-"Replace" is then finished in the only order that cannot lose a file: the new
-one is stored, _then_ the old one goes, _then_ the name changes hands.
+### Клієнт ніколи не вирішує, що користувачеві можна
 
-### The client never decides what a user may do
+API віддає роль викликача (`myRole`) разом із кожною текою, файлом і лістингом.
+Клієнт лише її відображає. Дії, на які немає прав, **не рендеряться взагалі**, а
+не рендеряться задизейбленими.
 
-The API ships the caller's role (`myRole`) alongside every folder, file and
-listing. The client only reflects it. Actions the user lacks the right to are
-**not rendered at all** rather than rendered disabled — a viewer should not be
-shown a door they cannot open.
+### Оптимістичні оновлення зі справжнім відкатом
 
-### Optimistic updates with real rollback
+Перейменування, переміщення і видалення правлять закешований лістинг на місці,
+тож зміна видно ще до того, як запит завершиться і дозволяє робити відкати.
 
-Rename, move and delete edit the cached listing in place so the change is
-visible before the request resolves. Every cache helper is a no-op when the item
-is not in the loaded pages, which makes the rollback safe to apply
-unconditionally.
+Переміщення супроводжується тостом Undo, вираженим як те саме переміщення з
+переставленими кінцями.
 
-Moves come with an Undo toast, expressed as the same move with the two ends
-swapped.
+### Лістинг великих тек
 
-### Listing large folders
+Keyset-пагінація (`nextCursor`) плюс нескінченний скрол, а тіло таблиці
+віртуалізоване через `@tanstack/react-virtual` — DOM лишається сталого розміру
+незалежно від того, скільки сторінок уже завантажено. `null` і тільки `null`
+означає, що лістинг вичерпано; коротка сторінка — ні.
 
-Keyset pagination (`nextCursor`) plus infinite scroll, and the table body is
-virtualised with `@tanstack/react-virtual` — the DOM stays a constant size no
-matter how many pages have been loaded. `null` and only `null` means the listing
-is exhausted; a short page does not.
+### Бандл
 
-### Bundle
-
-`manualChunks` splits vendors so a release does not invalidate everything at
-once, and pdf.js — by far the largest dependency — is confined to a lazy chunk
-that is not fetched until a file is opened. The PDF viewer renders a window of
-pages around the current one and gives every other page a placeholder of its
-real measured height, so the scrollbar stays honest while nothing is drawn.
+`manualChunks` розділяє вендори, щоб реліз не інвалідував усе одразу, а pdf.js —
+найбільша залежність із великим відривом — замкнений у лінивому чанку, який не
+завантажується, доки не відкрито файл. PDF-переглядач рендерить вікно сторінок
+навколо поточної, а кожній іншій дає плейсхолдер її реальної виміряної висоти,
+щоб скролбар лишався чесним, поки нічого не намальовано.
 
 ---
 
-## Edge cases
+## Граничні випадки
 
-| Case                                          | Handling                                                                                                                    |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Upload with a name already in the folder      | Asked before transfer; Keep both / Replace / Skip, with "apply to all"                                                      |
-| Two files with the same name in **one** batch | Collide with each other exactly as they would with existing files                                                           |
-| Deleting a folder                             | Warns with the subtree counts of what will be destroyed                                                                     |
-| Deleting a folder someone is viewing          | The viewer lands on a 404/Forbidden screen rather than an empty frame                                                       |
-| Connection lost                               | Offline banner; the upload queue pauses and resumes on reconnect                                                            |
-| Closing the tab mid-upload                    | `beforeunload` prompt while transfers are active                                                                            |
-| Expired or revoked share link                 | Dedicated "link expired" screen                                                                                             |
-| Rate limited (429)                            | One cooldown window blocks the actions that would only fail again; reads `Retry-After` and the backend's `Retry-After-auth` |
-| A lazy chunk fails to load                    | Route error boundary offers a reload, not a retry of the same request                                                       |
-| Cancelled requests                            | Stay silent — never surfaced as a toast                                                                                     |
-| Long file names                               | Truncated in the row, full name in the title tooltip                                                                        |
-| OAuth callback this tab never started         | `state` is checked against a value parked in `sessionStorage`                                                               |
+| Випадок                                     | Обробка                                                                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Завантаження з іменем, що вже є в теці      | Запитання ставиться до передачі; «Лишити обидва» / «Замінити» / «Пропустити», із «застосувати до всіх»         |
+| Два файли з однаковим іменем в одному батчі | Конфліктують між собою так само, як конфліктували б з наявними                                                 |
+| Видалення теки                              | Попередження з підрахунком усього піддерева, що буде знищене                                                   |
+| Видалення теки, яку хтось переглядає        | Глядач потрапляє на екран 404/Forbidden, а не в порожню рамку                                                  |
+| Втрата зв'язку                              | Офлайн-банер; черга завантажень стає на паузу і продовжується після відновлення                                |
+| Закриття вкладки під час завантаження       | Запит `beforeunload`, поки є активні передачі                                                                  |
+| Протермінований або відкликаний лінк        | Окремий екран «посилання недійсне»                                                                             |
+| Ліміт запитів (429)                         | Одне вікно очікування блокує дії, які все одно впали б; читає `Retry-After` і бекендівський `Retry-After-auth` |
+| Лінивий чанк не завантажився                | Роутовий error boundary пропонує перезавантаження, а не повтор того самого запиту                              |
+| Скасовані запити                            | ніколи не показуються тостом                                                                                   |
+| Довгі імена файлів                          | Обрізаються в рядку, повне ім'я — в тултипі                                                                    |
+| OAuth-колбек, якого ця вкладка не починала  | `state` звіряється зі значенням, збереженим у `sessionStorage`                                                 |
 
 ---
 
-## Where I used AI
+## Де використовувався AI
 
-I used AI (Claude) as a working tool throughout, in three areas:
+Я користувався AI (Claude) як робочим інструментом протягом усієї роботи, у
+трьох напрямках:
 
-**Code generation.** Components and hooks were largely AI-drafted from a spec I
-wrote per module — the upload queue, the share access panel, the PDF viewer's
-windowing, the drag-and-drop handlers. I reviewed and reworked the output rather
-than taking it as-is; the interaction and error behaviour described above is the
-result of several passes, not a first draft.
+**Генерація коду.** Компоненти й хуки здебільшого чернетково писав AI за
+специфікацією, яку я складав для кожного модуля, що включає чергу завантажень, панель
+доступів, віконний рендеринг PDF-переглядача, обробники drag-and-drop. Весь код, що був написаний був перевірений.
 
-**UI and styling.** Tailwind class composition and the shadcn/Radix primitives in
-`src/components/ui/` were generated and then adjusted — spacing, the colour
-tokens in `src/styles/`, and the responsive behaviour of the sidebar and details
-panel.
+**UI та стилі.** Композицію Tailwind-класів і примітиви shadcn/Radix у
+`src/components/ui/` було згенеровано — відступи, кольорові
+токени в `src/styles/`, адаптивна поведінка сайдбара й панелі деталей.
 
-**Review and refactoring.** I ran AI review passes over the finished code to find
-dead code and inconsistencies. That is where the last cleanup came from: removing
-an abandoned `neverthrow` error-handling layer that only one function still used,
-deleting unused hooks and starter-template leftovers, fixing a leak where blobs
-of cancelled uploads stayed in memory for the lifetime of the tab, correcting the
-dependency manifest (`pdfjs-dist` was imported but unlisted), and normalising
-line endings and formatting.
+**Рев'ю та рефакторинг.** Я проганяв AI-рев'ю по готовому коду, щоб знайти
+мертвий код і неузгодженості.
 
-**What I did not delegate.** The architecture is mine: the layering and the
-import rules that enforce it, the decision to let RTK Query own all server state,
-keeping the access token out of storage, the three-step upload and the ordering
-that makes "Replace" safe, and reflecting server-issued roles instead of
-computing permissions on the client. AI wrote a lot of the code; the shape of the
-solution and the trade-offs above are my own, and I can defend each of them.
+**Що не було делеговані ШІ** Архітектура, рішення в RTK Query покласти серверний стан; тримання access-токена поза сховищем; трикроковий аплоад і той порядок, який робить «Замінити» безпечним; відображення виданих сервером ролей замість обчислення прав на клієнті.
