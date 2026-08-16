@@ -25,29 +25,28 @@ export default defineConfig({
          */
         manualChunks: (id) => {
           if (!id.includes('node_modules')) return undefined
-
+        
           if (id.includes('pdfjs-dist') || id.includes('react-pdf')) {
             return 'pdf'
           }
+          if (id.includes('/zod/')) return 'zod'
+        
           if (
             id.includes('/react-dom/') ||
             id.includes('/react/') ||
-            id.includes('/scheduler/')
+            id.includes('/scheduler/') ||
+            id.includes('@reduxjs') ||
+            id.includes('react-redux') ||
+            id.includes('@radix-ui') ||
+            id.includes('radix-ui') ||
+            id.includes('@dnd-kit') ||
+            id.includes('react-router')
           ) {
-            return 'react'
+            return 'react-vendor'
           }
-          if (id.includes('@reduxjs') || id.includes('react-redux')) {
-            return 'redux'
-          }
-          if (id.includes('/zod/')) return 'zod'
-          if (id.includes('@dnd-kit')) return 'dnd'
-          if (id.includes('@radix-ui') || id.includes('radix-ui')) {
-            return 'radix'
-          }
-          if (id.includes('react-router')) return 'router'
-
+        
           return 'vendor'
-        },
+        }
       },
     },
   },
