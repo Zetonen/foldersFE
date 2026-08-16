@@ -1,0 +1,12 @@
+# The working tree was authored across platforms; normalise on commit so a
+# diff never shows a whole file because of its line endings.
+* text=auto eol=lf
+
+# Lockfiles and binaries are left exactly as they are.
+package-lock.json -diff linguist-generated
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

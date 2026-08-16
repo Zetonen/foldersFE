@@ -1,0 +1,1 @@
+export { EmailChipsInput } from './EmailChipsInput'

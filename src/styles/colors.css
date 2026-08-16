@@ -1,0 +1,51 @@
+/* Raw palette. Consumed by styles/theme.css, never used directly in components. */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces — very light neutral page, white panels. */
+  --page: oklch(0.972 0.001 260);
+  --background: oklch(0.972 0.001 260);
+  --foreground: oklch(0.24 0.006 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.006 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.006 260);
+
+  /* Single accent. */
+  --brand: oklch(0.58 0.164 258);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-muted: oklch(0.56 0.02 258);
+  --selected: oklch(0.955 0.028 256);
+
+  --primary: oklch(0.58 0.164 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.002 260);
+  --secondary-foreground: oklch(0.24 0.006 260);
+  --muted: oklch(0.96 0.002 260);
+  --muted-foreground: oklch(0.5 0.008 260);
+  --accent: oklch(0.955 0.002 260);
+  --accent-foreground: oklch(0.24 0.006 260);
+  --destructive: oklch(0.57 0.196 26);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.6 0.13 155);
+
+  --border: oklch(0.912 0.003 260);
+  --input: oklch(0.912 0.003 260);
+  --ring: oklch(0.58 0.164 258);
+
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.24 0.006 260);
+  --sidebar-primary: oklch(0.58 0.164 258);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.955 0.028 256);
+  --sidebar-accent-foreground: oklch(0.24 0.006 260);
+  --sidebar-border: oklch(0.912 0.003 260);
+  --sidebar-ring: oklch(0.58 0.164 258);
+
+  --radius: 0.5rem;
+
+  /* Fixed row height of the content list — mirrored in shared/consts/LIST.ts
+     so virtualisation (FR-EXP-17) measures exactly what CSS renders. */
+  --row-height: 48px;
+}

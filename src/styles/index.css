@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@import './colors.css';
+@import './theme.css';
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  div#root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-page font-sans text-foreground antialiased;
+  }
+}
