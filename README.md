@@ -7,9 +7,9 @@ Data Room: сховище PDF-файлів у вкладених теках з �
 
 |                      |                                                      |
 | -------------------- | ---------------------------------------------------- |
-| **Фронтенд**         | https://folders-fe.vercel.app                        |
-| **Бекенд**           | https://foldersbe-production.up.railway.app          |
-| **Документація API** | https://foldersbe-production.up.railway.app/api/docs |
+| **Фронтенд**         | Now not active (https://folders-fe.vercel.app)                        |
+| **Бекенд**           | Now not active (https://foldersbe-production.up.railway.app)          |
+| **Документація API** | Now not active (https://foldersbe-production.up.railway.app/api/docs) |
 
 ---
 
